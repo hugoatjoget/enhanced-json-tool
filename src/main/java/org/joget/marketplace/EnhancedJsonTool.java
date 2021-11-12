@@ -68,14 +68,16 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
         AppDefinition appDef = AppUtil.getCurrentAppDefinition();
         String appId = appDef.getId();
         String appVersion = appDef.getVersion().toString();
-        Object[] arguments = new Object[]{appId, appVersion};
+        Object[] arguments = new Object[]{appId, appVersion, appId, appVersion};
         String json = AppUtil.readPluginResource(getClass().getName(), "/properties/enhancedJsonTool.json", arguments, true, MESSAGE_PATH);
         return json;
     }
 
     public Object execute(Map properties) {
         WorkflowAssignment wfAssignment = (WorkflowAssignment) properties.get("workflowAssignment");
-
+        ApplicationContext ac = AppUtil.getApplicationContext();
+        WorkflowManager workflowManager = (WorkflowManager) ac.getBean("workflowManager");
+        
         String jsonUrl = (String) properties.get("jsonUrl");
         CloseableHttpClient client = null;
         HttpRequestBase request = null;
@@ -153,7 +155,15 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
                 LogUtil.info(EnhancedJsonTool.class.getName(), jsonUrl + " returned with status : " + response.getStatusLine().getStatusCode());
             }
             
-            if (!"true".equalsIgnoreCase(getPropertyString("noResponse"))) {
+            if( !getPropertyString("responseStatusWorkflowVariable").isEmpty() ){
+                workflowManager.activityVariable(wfAssignment.getActivityId(), getPropertyString("saveStatusToWorkflowVariable"), response.getStatusLine().getStatusCode());
+            }
+            
+            if( !getPropertyString("responseStatusFormDefId").isEmpty() ){
+                storeStatusToForm(properties, String.valueOf(response.getStatusLine().getStatusCode()) );
+            }
+            
+            if (!"true".equalsIgnoreCase(getPropertyString("noResponse")) && response.getStatusLine().getStatusCode() == 200 ) {
                 String jsonResponse = EntityUtils.toString(response.getEntity(), "UTF-8");
                 if (jsonResponse != null && !jsonResponse.isEmpty()) {
                     if (jsonResponse.startsWith("[") && jsonResponse.endsWith("]")) {
@@ -186,6 +196,14 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
             }
         } catch (Exception ex) {
             LogUtil.error(getClass().getName(), ex, "");
+            
+            if( !getPropertyString("saveStatusToWorkflowVariable").isEmpty() ){
+                workflowManager.activityVariable(wfAssignment.getActivityId(), getPropertyString("saveStatusToWorkflowVariable"), ex.toString());
+            }
+            if( !getPropertyString("responseStatusFormDefId").isEmpty() ){
+                storeStatusToForm(properties, ex.toString());
+            }
+            
         } finally {
             try {
                 if (request != null) {
@@ -201,7 +219,30 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
 
         return null;
     }
+    
+    protected void storeStatusToForm(Map properties, String status) {
+        String formDefId = (String) properties.get("responseStatusFormDefId");
+        String statusField = (String) properties.get("responseStatusStatusField");
+        String idField = (String) properties.get("responseStatusIdField");
+        
+        if (formDefId != null && formDefId.trim().length() > 0) {
+            ApplicationContext ac = AppUtil.getApplicationContext();
+            AppService appService = (AppService) ac.getBean("appService");
+            AppDefinition appDef = (AppDefinition) properties.get("appDef");
 
+            FormRowSet rowSet = new FormRowSet();
+            FormRow row = new FormRow();
+            if(!idField.isEmpty()){
+                row.put("id", idField);
+            }
+            
+            row.put(statusField, status);
+            rowSet.add(row);
+            
+            appService.storeFormData(appDef.getId(), appDef.getVersion().toString(), formDefId, rowSet, null);
+        }
+    }
+    
     protected void storeToForm(WorkflowAssignment wfAssignment, Map properties, Map object) {
         String formDefId = (String) properties.get("formDefId");
         if (formDefId != null && formDefId.trim().length() > 0) {
@@ -213,7 +254,7 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
             String multirowBaseObjectName = (String) properties.get("multirowBaseObject");
 
             FormRowSet rowSet = new FormRowSet();
-
+            
             if (multirowBaseObjectName != null && multirowBaseObjectName.trim().length() > 0 && getObjectFromMap(multirowBaseObjectName, object) != null && getObjectFromMap(multirowBaseObjectName, object).getClass().isArray()) {
                 Object[] baseObjectArray = (Object[]) getObjectFromMap(multirowBaseObjectName, object);
                 if (baseObjectArray != null && baseObjectArray.length > 0) {
