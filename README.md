@@ -2,6 +2,8 @@
 
 This plugin works just like the default bundled JSON Tool in Joget, but with the added ability to format the JSON response prior to storing to form or workflow variable.
 
+In this branch, it has extra feature to capture the call's response status (status code or exception) and save into workflow variable and/or form data.
+
 The plugin's base implementation can be found on the Joget Community Github page [here](https://github.com/jogetworkflow/jw-community/blob/7.0-SNAPSHOT/wflow-core/src/main/java/org/joget/apps/app/lib/JsonTool.java).
 
 Do see [documentation and sample app](https://dev.joget.org/community/display/marketplace/Enhanced+JSON+Tool+Plugin).
