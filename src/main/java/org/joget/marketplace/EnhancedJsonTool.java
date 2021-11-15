@@ -53,7 +53,7 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
     }
 
     public String getVersion() {
-        return "7.0.0";
+        return "7.0.1";
     }
 
     public String getLabel() {
@@ -160,7 +160,7 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
             }
             
             if( !getPropertyString("responseStatusFormDefId").isEmpty() ){
-                storeStatusToForm(properties, String.valueOf(response.getStatusLine().getStatusCode()) );
+                storeStatusToForm(wfAssignment, properties, String.valueOf(response.getStatusLine().getStatusCode()) );
             }
             
             if (!"true".equalsIgnoreCase(getPropertyString("noResponse")) && response.getStatusLine().getStatusCode() == 200 ) {
@@ -201,7 +201,7 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
                 workflowManager.activityVariable(wfAssignment.getActivityId(), getPropertyString("saveStatusToWorkflowVariable"), ex.toString());
             }
             if( !getPropertyString("responseStatusFormDefId").isEmpty() ){
-                storeStatusToForm(properties, ex.toString());
+                storeStatusToForm(wfAssignment, properties, ex.toString() + " - " + ex.getMessage());
             }
             
         } finally {
@@ -220,7 +220,7 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
         return null;
     }
     
-    protected void storeStatusToForm(Map properties, String status) {
+    protected void storeStatusToForm(WorkflowAssignment wfAssignment, Map properties, String status) {
         String formDefId = (String) properties.get("responseStatusFormDefId");
         String statusField = (String) properties.get("responseStatusStatusField");
         String idField = (String) properties.get("responseStatusIdField");
@@ -232,8 +232,11 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
 
             FormRowSet rowSet = new FormRowSet();
             FormRow row = new FormRow();
+            
             if(!idField.isEmpty()){
-                row.put("id", idField);
+                row.put(idField, appService.getOriginProcessId(wfAssignment.getProcessId()));
+            }else{
+                row.setId(appService.getOriginProcessId(wfAssignment.getProcessId()));
             }
             
             row.put(statusField, status);
