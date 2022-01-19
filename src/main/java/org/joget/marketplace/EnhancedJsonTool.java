@@ -163,12 +163,17 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
                 storeStatusToForm(wfAssignment, properties, String.valueOf(response.getStatusLine().getStatusCode()) );
             }
             
-            if (!"true".equalsIgnoreCase(getPropertyString("noResponse")) && response.getStatusLine().getStatusCode() == 200 ) {
+            if (!"true".equalsIgnoreCase(getPropertyString("noResponse")) && response.getStatusLine().getStatusCode() >= 200 && response.getStatusLine().getStatusCode() <= 300  ) {
                 String jsonResponse = EntityUtils.toString(response.getEntity(), "UTF-8");
                 if (jsonResponse != null && !jsonResponse.isEmpty()) {
                     if (jsonResponse.startsWith("[") && jsonResponse.endsWith("]")) {
                         jsonResponse = "{ \"response\" : " + jsonResponse + " }";
                     }
+                    
+                    if( !jsonResponse.startsWith("{") && !jsonResponse.endsWith("}")){
+                        jsonResponse = "{ \"response\" : " + jsonResponse + " }";
+                    }
+                    
                     if ("true".equalsIgnoreCase(getPropertyString("debugMode"))) {
                         LogUtil.info(EnhancedJsonTool.class.getName(), jsonResponse);
                     }
