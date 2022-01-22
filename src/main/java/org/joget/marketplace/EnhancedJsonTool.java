@@ -15,6 +15,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -82,6 +83,9 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
         CloseableHttpClient client = null;
         HttpRequestBase request = null;
         
+        String jsonResponse = "";
+        Map object = null;
+        
         try {
             client = HttpClients.createDefault();
 
@@ -133,7 +137,47 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
                     }
                     ((HttpPost) request).setEntity(new UrlEncodedFormEntity(urlParameters, "UTF-8"));
                 }
-            } else {
+            }else if ("put".equalsIgnoreCase(getPropertyString("requestType"))) {
+                request = new HttpPut(jsonUrl);
+                
+                if ("jsonPayload".equals(getPropertyString("postMethod"))) {
+                    JSONObject obj = new JSONObject();
+                    Object[] paramsValues = (Object[]) properties.get("params");
+                    for (Object o : paramsValues) {
+                        Map mapping = (HashMap) o;
+                        String name  = mapping.get("name").toString();
+                        String value = mapping.get("value").toString();
+                        obj.accumulate(name, WorkflowUtil.processVariable(value, "", wfAssignment));
+                    }
+
+                    StringEntity requestEntity = new StringEntity(obj.toString(4), "UTF-8");
+                    ((HttpPut) request).setEntity(requestEntity);
+                    request.setHeader("Content-type", "application/json");
+                    if ("true".equalsIgnoreCase(getPropertyString("debugMode"))) {
+                        LogUtil.info(EnhancedJsonTool.class.getName(), "JSON Payload : " + obj.toString(4));
+                    }
+                } else if ("custom".equals(getPropertyString("postMethod"))) {
+                    StringEntity requestEntity = new StringEntity(getPropertyString("customPayload"), "UTF-8");
+                    ((HttpPut) request).setEntity(requestEntity);
+                    request.setHeader("Content-type", "application/json");
+                    if ("true".equalsIgnoreCase(getPropertyString("debugMode"))) {
+                        LogUtil.info(EnhancedJsonTool.class.getName(), "Custom JSON Payload : " + getPropertyString("customPayload"));
+                    }
+                } else {
+                    List<NameValuePair> urlParameters = new ArrayList<NameValuePair>();
+                    Object[] paramsValues = (Object[]) properties.get("params");
+                    for (Object o : paramsValues) {
+                        Map mapping = (HashMap) o;
+                        String name  = mapping.get("name").toString();
+                        String value = mapping.get("value").toString();
+                        urlParameters.add(new BasicNameValuePair(name, WorkflowUtil.processVariable(value, "", wfAssignment)));
+                        if ("true".equalsIgnoreCase(getPropertyString("debugMode"))) {
+                            LogUtil.info(EnhancedJsonTool.class.getName(), "Adding param " + name + " : " + value);
+                        }
+                    }
+                    ((HttpPut) request).setEntity(new UrlEncodedFormEntity(urlParameters, "UTF-8"));
+                }
+            }else {
                 request = new HttpGet(jsonUrl);
             }
             
@@ -155,29 +199,23 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
                 LogUtil.info(EnhancedJsonTool.class.getName(), jsonUrl + " returned with status : " + response.getStatusLine().getStatusCode());
             }
             
-            if( !getPropertyString("responseStatusWorkflowVariable").isEmpty() ){
-                workflowManager.activityVariable(wfAssignment.getActivityId(), getPropertyString("saveStatusToWorkflowVariable"), response.getStatusLine().getStatusCode());
-            }
-            
-            if( !getPropertyString("responseStatusFormDefId").isEmpty() ){
-                storeStatusToForm(wfAssignment, properties, String.valueOf(response.getStatusLine().getStatusCode()) );
-            }
-            
             if (!"true".equalsIgnoreCase(getPropertyString("noResponse")) && response.getStatusLine().getStatusCode() >= 200 && response.getStatusLine().getStatusCode() <= 300  ) {
-                String jsonResponse = EntityUtils.toString(response.getEntity(), "UTF-8");
-                if (jsonResponse != null && !jsonResponse.isEmpty()) {
-                    if (jsonResponse.startsWith("[") && jsonResponse.endsWith("]")) {
-                        jsonResponse = "{ \"response\" : " + jsonResponse + " }";
+                jsonResponse = EntityUtils.toString(response.getEntity(), "UTF-8");
+                
+                String jsonResponseFormatted = jsonResponse;
+                if (jsonResponseFormatted != null && !jsonResponseFormatted.isEmpty()) {
+                    if (jsonResponseFormatted.startsWith("[") && jsonResponseFormatted.endsWith("]")) {
+                        jsonResponseFormatted = "{ \"response\" : " + jsonResponseFormatted + " }";
                     }
                     
-                    if( !jsonResponse.startsWith("{") && !jsonResponse.endsWith("}")){
-                        jsonResponse = "{ \"response\" : " + jsonResponse + " }";
+                    if( !jsonResponseFormatted.startsWith("{") && !jsonResponseFormatted.endsWith("}")){
+                        jsonResponseFormatted = "{ \"response\" : " + jsonResponseFormatted + " }";
                     }
                     
                     if ("true".equalsIgnoreCase(getPropertyString("debugMode"))) {
-                        LogUtil.info(EnhancedJsonTool.class.getName(), jsonResponse);
+                        LogUtil.info(EnhancedJsonTool.class.getName(), jsonResponseFormatted);
                     }
-                    Map object = PropertyUtil.getProperties(new JSONObject(jsonResponse));
+                    object = PropertyUtil.getProperties(new JSONObject(jsonResponseFormatted));
 
                     //Added ability to format response via bean shell in configuration
                     if ("true".equalsIgnoreCase(getPropertyString("enableFormatResponse"))) {
@@ -196,9 +234,19 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
                     storeToForm(wfAssignment, properties, object);
                     storeToWorkflowVariable(wfAssignment, properties, object);
                     
-                    return object;
                 }
             }
+            
+            if( !getPropertyString("responseStatusWorkflowVariable").isEmpty() ){
+                workflowManager.activityVariable(wfAssignment.getActivityId(), getPropertyString("saveStatusToWorkflowVariable"), response.getStatusLine().getStatusCode());
+            }
+            
+            if( !getPropertyString("responseStatusFormDefId").isEmpty() ){
+                storeStatusToForm(wfAssignment, properties, String.valueOf(response.getStatusLine().getStatusCode()), jsonResponse );
+            }
+            
+            return object;
+            
         } catch (Exception ex) {
             LogUtil.error(getClass().getName(), ex, "");
             
@@ -206,7 +254,7 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
                 workflowManager.activityVariable(wfAssignment.getActivityId(), getPropertyString("saveStatusToWorkflowVariable"), ex.toString());
             }
             if( !getPropertyString("responseStatusFormDefId").isEmpty() ){
-                storeStatusToForm(wfAssignment, properties, ex.toString() + " - " + ex.getMessage());
+                storeStatusToForm(wfAssignment, properties, ex.toString() + " - " + ex.getMessage(), jsonResponse);
             }
             
         } finally {
@@ -225,10 +273,12 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
         return null;
     }
     
-    protected void storeStatusToForm(WorkflowAssignment wfAssignment, Map properties, String status) {
+    protected void storeStatusToForm(WorkflowAssignment wfAssignment, Map properties, String status, String jsonResponse) {
         String formDefId = (String) properties.get("responseStatusFormDefId");
         String statusField = (String) properties.get("responseStatusStatusField");
+        String responseDataField = (String) properties.get("responseStatusResponseDataField");
         String idField = (String) properties.get("responseStatusIdField");
+        Object[] fieldMapping = (Object[]) properties.get("responseStatusFieldMapping");
         
         if (formDefId != null && formDefId.trim().length() > 0) {
             ApplicationContext ac = AppUtil.getApplicationContext();
@@ -238,10 +288,19 @@ public class EnhancedJsonTool extends DefaultApplicationPlugin {
             FormRowSet rowSet = new FormRowSet();
             FormRow row = new FormRow();
             
+            if(!responseDataField.isEmpty()){
+                row.put(responseDataField, jsonResponse);
+            }
+            
             if(!idField.isEmpty()){
                 row.put(idField, appService.getOriginProcessId(wfAssignment.getProcessId()));
             }else{
                 row.setId(appService.getOriginProcessId(wfAssignment.getProcessId()));
+            }
+            
+            for(Object obj : fieldMapping){
+                Map map = (Map) obj;
+                row.put(map.get("field").toString(), map.get("value").toString());
             }
             
             row.put(statusField, status);

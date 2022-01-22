@@ -21,12 +21,16 @@
                {
                   "value":"post",
                   "label":"@@app.jsontool.requestType.post@@"
+               },
+               {
+                  "value":"put",
+                  "label":"@@app.jsontool.requestType.put@@"
                }
             ]
          },
          {
             "name":"postMethod",
-            "label":"@@app.jsontool.postMethod@@",
+            "label":"@@app.jsontool.payloadType@@",
             "type":"selectbox",
             "value":"",
             "options":[
@@ -44,8 +48,8 @@
                }
             ],
             "control_field":"requestType",
-            "control_value":"post",
-            "control_use_regex":"false"
+            "control_value":"post|put",
+            "control_use_regex":"true"
          },
          {
             "name":"params",
@@ -232,6 +236,16 @@
             "control_use_regex": "true"
          },
          {
+            "name":"responseStatusResponseDataField",
+            "label":"@@app.jsontool.responseStatusResponseDataField@@",
+            "type":"selectbox",
+            "options_ajax_on_change" : "formDefId:responseStatusFormDefId",
+            "options_ajax" : "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/form/columns/options",
+            "control_field": "responseStatusFormDefId",
+            "control_value": ".+",
+            "control_use_regex": "true"
+         },
+         {
             "name":"responseStatusStatusField",
             "label":"@@app.jsontool.responseStatusStatusField@@",
             "type":"selectbox",
@@ -241,6 +255,23 @@
             "control_field": "responseStatusFormDefId",
             "control_value": ".+",
             "control_use_regex": "true"
+         },
+         {
+            "name":"responseStatusFieldMapping",
+            "label":"@@app.jsontool.fieldMapping@@",
+            "type":"grid",
+            "columns":[
+               {
+                  "key":"field",
+                  "label":"@@app.jsontool.fieldName@@",
+                  "options_ajax_on_change":"formDefId:responseStatusFormDefId",
+                  "options_ajax":"[CONTEXT_PATH]/web/json/console/app[APP_PATH]/form/columns/options"
+               },
+               {
+                  "key":"value",
+                  "label":"@@app.jsontool.value@@"
+               }
+            ]
          }
       ]
    }
